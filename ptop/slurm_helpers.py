@@ -95,7 +95,7 @@ class NodeStatusInfo:
         user_strs = [
             f'{user} ({num_gpus})' for user, num_gpus in sorted(self.gpu_users.items(), key=lambda item: item[1])
         ]
-        return ','.join(user_strs)
+        return ', '.join(user_strs)
 
 
 def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
@@ -130,7 +130,11 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
 
         # Get CPU info.
         # CPUS(A/I/O/T) => Allocated / Idle / Other / Total
-        cpu_taken, cpu_idle, cpu_other, cpu_total = map(int, info["CPUS(A/I/O/T)"].split("/"))
+        try:
+            cpu_taken, cpu_idle, cpu_other, cpu_total = map(float, info["CPUS(A/I/O/T)"].split("/"))
+        except ValueError:
+            print("<>> INFO:", info["CPUS(A/I/O/T)"]    )
+            cpu_taken = cpu_total = float(info["CPUS(A/I/O/T)"])
         mem_taken = int(info["MEMORY"]) - int(info["FREE_MEM"])
         mem_total = int(info["MEMORY"])
 
@@ -144,7 +148,7 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
             user = job["User"]
             # billing=4,cpu=4,gres/gpu:titanrtx=1,gres/gpu=1,me+ => 1
             try:
-                gpus_str = re.search(r"gres/gpu=(\d+)", jobs.iloc[0]["AllocTRES"]).group(1)
+                gpus_str = re.search(r"gres/gpu=(\d+)", job["AllocTRES"]).group(1)
             except AttributeError:
                 gpus_str = "0"
             # Track GPUs in use (even if it's zero)

@@ -12,6 +12,7 @@ Indicator {
     offset-x: 2%;
     width: 96%;
     layout: horizontal;
+    padding-bottom: 1;
 }
 Indicator > Rectangle {
     margin-right: 1;

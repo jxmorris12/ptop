@@ -26,7 +26,7 @@ class Rectangle(Static):
         return f" {self.label}"
 
 
-class NodeStatusDisplay(Static):
+class Indicator(Static):
     """A widget to display elapsed time.
     
     Kind of like a progress bar, for showing how much
@@ -34,7 +34,12 @@ class NodeStatusDisplay(Static):
     """
     taken: float
     total: float
-    def __init__(self, taken: float, total: float):
+    active_color: str
+    def __init__(
+            self, 
+            taken: float, 
+            total: float,
+        ):
         super().__init__()
         self.taken = taken
         self.total = total
@@ -46,30 +51,42 @@ class NodeStatusDisplay(Static):
         w2 = 100.0 * (1.0 - self.taken / self.total)
 
         yield Rectangle(
-            label=str(self.total - self.taken),
-            color="green",
+            label=f"{self.total - self.taken:.2f}",
+            color=self.get_active_color(),
             width=f"{w2:.2f}%"
         )
         yield Rectangle(
-            label=str(self.taken),
-            color="gray",
+            label=f"{self.taken:.2f}",
+            color="#808080",
             width=f"{w1:.2f}%"
         )
 
 
-class CpuDisplay(NodeStatusDisplay):
+class CpuDisplay(Indicator):
+    def get_active_color(self) -> str:
+        return "#035096" # blue
+    
     def get_label(self) -> str:
         return "CPU"
 
-class CpuLoadDisplay(NodeStatusDisplay):
+class CpuLoadDisplay(Indicator):
+    def get_active_color(self) -> str:
+        return "#800080" # purple
+
     def get_label(self) -> str:
         return "CPU Load"
 
-class GpuDisplay(NodeStatusDisplay):
+class GpuDisplay(Indicator):
+    def get_active_color(self) -> str:
+        return "#008000" # green
+
     def get_label(self) -> str:
         return "GPU"
 
-class MemDisplay(NodeStatusDisplay):
+class MemDisplay(Indicator):
+    def get_active_color(self) -> str:
+        return "#FF4500" # red
+
     def get_label(self) -> str:
         return "MEM"
 
@@ -85,10 +102,10 @@ class NodeStatus(Static):
         """Create child widgets of a stopwatch."""
         yield Markdown(f"## {self.status.hostname}")
         yield CpuDisplay(self.status.cpu_taken, self.status.cpu_total)
-        yield CpuDisplay(self.status.cpu_load, 100.0)
         yield MemDisplay(self.status.mem_taken, self.status.mem_total)
         yield GpuDisplay(self.status.gpu_taken, self.status.gpu_total)
-        yield Markdown(self.status.gpu_users_str)
+        yield Markdown(f'**GPU Users:** {self.status.gpu_users_str}')
+        yield CpuLoadDisplay(self.status.cpu_load, 100.0)
         
 
 class JobStatus(Static):
@@ -113,13 +130,21 @@ class SlurmStats(App):
 
     def compose(self) -> ComposeResult:
         """Called to add widgets to the app."""
+        yield LoadingIndicator()
         yield Header("SLURM Status")
 
         node_statuses = slurm_helpers.get_node_statuses(ALL_HOSTNAMES)
         with Container():
             with Horizontal():
-                yield VerticalScroll(*[NodeStatus(s) for s in node_statuses], id="node_status")
-                yield Vertical(JobStatus(), id="job_status")
+                yield VerticalScroll(
+                    *[NodeStatus(s) for s in node_statuses], 
+                    id="node_status",
+                )
+                yield Vertical(
+                    Markdown("## Job Status"), 
+                    JobStatus(), 
+                    id="job_status",
+                )
         yield Footer()
 
     def action_toggle_dark(self) -> None:
@@ -128,9 +153,7 @@ class SlurmStats(App):
 
 
 def main():
-    print("running app")
     SlurmStats().run()
-    print("ran app")
 
 
 if __name__ == '__main__': main()
