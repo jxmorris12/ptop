@@ -11,7 +11,7 @@ ALL_HOSTNAMES = [
     "rush-compute-01",
     "rush-compute-02",
     "rush-compute-03",
-    "nlp-large-01",
+    "nlplarge-compute-01",
 ]
 
 
@@ -26,20 +26,25 @@ class Rectangle(Static):
         return f" {self.label}"
 
 
-class Indicator(Static):
-    """Kind of like a progress bar, for showing how much
-    is left of something.
-    """
-    def __init__(self):
-        super().__init__()
-        self.taken = 5
-        self.total = 8
+class NodeStatusDisplay(Static):
+    """A widget to display elapsed time.
     
-    def compose(self):
+    Kind of like a progress bar, for showing how much
+    is left of something. Also has a label.
+    """
+    taken: float
+    total: float
+    def __init__(self, taken: float, total: float):
+        super().__init__()
+        self.taken = taken
+        self.total = total
+
+    def compose(self) -> ComposeResult:
+        """Create child widgets of a stopwatch."""
+        yield Label(self.get_label())
         w1 = 100.0 * self.taken / self.total
         w2 = 100.0 * (1.0 - self.taken / self.total)
 
-        # with Horizontal():
         yield Rectangle(
             label=str(self.total - self.taken),
             color="green",
@@ -52,18 +57,13 @@ class Indicator(Static):
         )
 
 
-class NodeStatusDisplay(Static):
-    """A widget to display elapsed time."""
-
-    def compose(self) -> ComposeResult:
-        """Create child widgets of a stopwatch."""
-        yield Label(self.get_label())
-        yield Indicator()
-
-
 class CpuDisplay(NodeStatusDisplay):
     def get_label(self) -> str:
         return "CPU"
+
+class CpuLoadDisplay(NodeStatusDisplay):
+    def get_label(self) -> str:
+        return "CPU Load"
 
 class GpuDisplay(NodeStatusDisplay):
     def get_label(self) -> str:
@@ -76,22 +76,25 @@ class MemDisplay(NodeStatusDisplay):
 
 class NodeStatus(Static):
     """A widget to display SLURM node status."""
-    hostname: str
-    def __init__(self, hostname: str):
+    status: slurm_helpers.NodeStatusInfo
+    def __init__(self, status: slurm_helpers.NodeStatusInfo):
         super().__init__()
-        self.hostname = hostname
+        self.status = status
 
     def compose(self) -> ComposeResult:
         """Create child widgets of a stopwatch."""
-        yield Markdown(f"## {self.hostname}")
-        yield CpuDisplay()
-        yield MemDisplay()
-        yield GpuDisplay()
+        yield Markdown(f"## {self.status.hostname}")
+        yield CpuDisplay(self.status.cpu_taken, self.status.cpu_total)
+        yield CpuDisplay(self.status.cpu_load, 100.0)
+        yield MemDisplay(self.status.mem_taken, self.status.mem_total)
+        yield GpuDisplay(self.status.gpu_taken, self.status.gpu_total)
+        yield Markdown(self.status.gpu_users_str)
+        
 
 class JobStatus(Static):
 
     def compose(self) -> ComposeResult:
-        df = slurm_helpers.get_squeue_df()
+        df = slurm_helpers.get_job_status_df()
         table = DataTable()
         table.add_columns(*df.columns)
         table.add_rows(df.to_numpy()[1:])
@@ -111,9 +114,11 @@ class SlurmStats(App):
     def compose(self) -> ComposeResult:
         """Called to add widgets to the app."""
         yield Header("SLURM Status")
+
+        node_statuses = slurm_helpers.get_node_statuses(ALL_HOSTNAMES)
         with Container():
             with Horizontal():
-                yield VerticalScroll(*[NodeStatus(host) for host in ALL_HOSTNAMES], id="node_status")
+                yield VerticalScroll(*[NodeStatus(s) for s in node_statuses], id="node_status")
                 yield Vertical(JobStatus(), id="job_status")
         yield Footer()
 
