@@ -135,12 +135,23 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
         except ValueError:
             print("<>> INFO:", info["CPUS(A/I/O/T)"]    )
             cpu_taken = cpu_total = float(info["CPUS(A/I/O/T)"])
-        mem_taken = int(info["MEMORY"]) - int(info["FREE_MEM"])
+
+        
         mem_total = int(info["MEMORY"])
+        if info["FREE_MEM"] == "mix":
+            mem_free = mem_total
+        else:
+            mem_free = int(info["FREE_MEM"])
+        mem_taken = mem_total - mem_free
 
         # Count GPUs.
         #    gpu:titanrtx:8(S:0-1) -> 8
-        total_gpus = int(re.search(r"gpu:\w+:(\d)\(.+", info["GRES"]).group(1))
+        try:
+            total_gpus = int(re.search(r"gpu:\w+:(\d)\(.+", info["GRES"]).group(1))
+        except TypeError as e:
+            # TODO -- this happens non-deterministically; fix.
+            # breakpoint()
+            raise e
 
         # Now subtract in-use GPUs from each job.
         taken_gpus_by_user = collections.defaultdict(lambda: 0)
