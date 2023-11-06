@@ -1,8 +1,9 @@
 from time import monotonic
 
+from . import slurm_helpers
+
 from textual.app import App, ComposeResult
 from textual.containers import ScrollableContainer
-from textual.reactive import reactive
 from textual.widgets import DataTable, Footer, Header, Label, Markdown, ProgressBar, Static
 
 
@@ -45,34 +46,21 @@ class NodeStatus(Static):
 class JobStatus(Static):
 
     def compose(self) -> ComposeResult:
-        ROWS = [
-            ("lane", "swimmer", "country", "time"),
-            (4, "Joseph Schooling", "Singapore", 50.39),
-            (2, "Michael Phelps", "United States", 51.14),
-            (5, "Chad le Clos", "South Africa", 51.14),
-            (6, "László Cseh", "Hungary", 51.14),
-            (3, "Li Zhuhao", "China", 51.26),
-            (8, "Mehdy Metella", "France", 51.58),
-            (7, "Tom Shields", "United States", 51.73),
-            (1, "Aleksandr Sadovnikov", "Russia", 51.84),
-            (10, "Darren Burns", "Scotland", 51.84),
-        ]
+        df = slurm_helpers.get_squeue_df()
         table = DataTable()
-        table.add_columns(*ROWS[0])
-        table.add_rows(ROWS[1:])
+        table.add_columns(*df.columns)
+        table.add_rows(df.to_numpy()[1:])
         yield table
 
 
 
-class PtopApp(App):
-    """A Textual app to manage stopwatches."""
+class SlurmStats(App):
+    """A Textual app to view SLURM status."""
 
     CSS_PATH = "css/ptop.tcss"
 
     BINDINGS = [
         ("d", "toggle_dark", "Toggle dark mode"),
-        ("a", "add_stopwatch", "Add"),
-        ("r", "remove_stopwatch", "Remove"),
     ]
 
     def compose(self) -> ComposeResult:
@@ -86,18 +74,6 @@ class PtopApp(App):
         yield ScrollableContainer(*[NodeStatus(host) for host in hostnames], id="timers")
         yield ScrollableContainer(JobStatus(), id="timers2")
 
-    def action_add_stopwatch(self) -> None:
-        """An action to add a timer."""
-        new_stopwatch = Stopwatch()
-        self.query_one("#timers").mount(new_stopwatch)
-        new_stopwatch.scroll_visible()
-
-    def action_remove_stopwatch(self) -> None:
-        """Called to remove a timer."""
-        timers = self.query("Stopwatch")
-        if timers:
-            timers.last().remove()
-
     def action_toggle_dark(self) -> None:
         """An action to toggle dark mode."""
         self.dark = not self.dark
@@ -105,7 +81,7 @@ class PtopApp(App):
 
 def main():
     print("running app")
-    PtopApp().run()
+    SlurmStats().run()
     print("ran app")
 
 
