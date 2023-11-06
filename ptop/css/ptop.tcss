@@ -1,3 +1,19 @@
 Screen {
     layout: horizontal;
 }
+
+NodeStatusDisplay {
+    padding-left: 2;
+    padding-right: 2;
+}
+
+Indicator {
+    height: auto;
+    offset-x: 2%;
+    width: 96%;
+    layout: horizontal;
+}
+Indicator > Rectangle {
+    height: 1;
+    margin-bottom: 1;
+}

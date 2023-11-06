@@ -2,9 +2,45 @@ from time import monotonic
 
 from . import slurm_helpers
 
-from textual.app import App, ComposeResult
-from textual.containers import ScrollableContainer
-from textual.widgets import DataTable, Footer, Header, Label, Markdown, ProgressBar, Static
+from textual.app import App, ComposeResult, RenderResult
+from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.widgets import DataTable, Footer, Header, Label, Markdown, Static
+
+
+class Rectangle(Static):
+    def __init__(self, label: str, color: str, width: str):
+        super().__init__()
+        self.label = label
+        self.styles.background = color
+        self.styles.width = width
+
+    def render(self) -> RenderResult:
+        return self.label
+
+class Indicator(Static):
+    """Kind of like a progress bar, for showing how much
+    is left of something.
+    """
+    def __init__(self):
+        super().__init__()
+        self.taken = 5
+        self.total = 8
+    
+    def compose(self):
+        w1 = 100.0 * self.taken / self.total
+        w2 = 100.0 * (1.0 - self.taken / self.total)
+
+        # with Horizontal():
+        yield Rectangle(
+            label=str(self.total - self.taken),
+            color="green",
+            width=f"{w2:.2f}%"
+        )
+        yield Rectangle(
+            label=str(self.taken),
+            color="gray",
+            width=f"{w1:.2f}%"
+        )
 
 
 class NodeStatusDisplay(Static):
@@ -13,7 +49,7 @@ class NodeStatusDisplay(Static):
     def compose(self) -> ComposeResult:
         """Create child widgets of a stopwatch."""
         yield Label(self.get_label())
-        yield ProgressBar()
+        yield Indicator()
 
 
 class CpuDisplay(NodeStatusDisplay):
@@ -69,10 +105,12 @@ class SlurmStats(App):
             *[f"rush-compute-0{idx}" for idx in range(1,4)],
             "nlp-large-01",
         ]
-        yield Header("SLURM Node Status")
+        yield Header("SLURM Status")
+        with Container():
+            with Horizontal():
+                yield VerticalScroll(*[NodeStatus(host) for host in hostnames], id="node_status")
+                yield Vertical(JobStatus(), id="job_status")
         yield Footer()
-        yield ScrollableContainer(*[NodeStatus(host) for host in hostnames], id="timers")
-        yield ScrollableContainer(JobStatus(), id="timers2")
 
     def action_toggle_dark(self) -> None:
         """An action to toggle dark mode."""
