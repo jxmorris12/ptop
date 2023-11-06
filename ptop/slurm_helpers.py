@@ -1,11 +1,13 @@
+from typing import List
+
+import dataclasses
 import io
-# import os
 import subprocess
 
 import pandas as pd
 
 
-def get_squeue_df() -> pd.DataFrame:
+def get_job_status_df() -> pd.DataFrame:
     """Runs squeue which produces output like below and parses into a pandas dataframe.
     
                  JOBID PARTITION     NAME     USER ST       TIME  NODES NODELIST(REASON)
@@ -28,3 +30,28 @@ def get_squeue_df() -> pd.DataFrame:
     output_file = io.StringIO(cmd_output.decode())
     return pd.read_table(output_file, delim_whitespace=True, skiprows=1)
 
+
+
+@dataclasses.dataclass
+class NodeStatusInfo:
+    gpu_taken: int
+    gpu_total: int
+    ###############
+    cpu_taken: int
+    cpu_total: int
+    ###############
+    mem_taken: int
+    mem_total: int
+
+def get_node_status(hostnames: List[str]) -> List[NodeStatusInfo]:
+    node_info_output = subprocess.check_output(["pestat -G -p rush -c"]).decode()
+
+    running_jobs_output = subprocess.check_output(
+        ["sacct --format=User%10,partition%20,NodeList%25,State,AllocTRES%50,Time -a --units=G| grep billing | grep RUNNING"]
+    ).decode()
+
+    breakpoint()
+
+
+if __name__ == "__main__":
+    print(get_node_status())

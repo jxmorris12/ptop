@@ -7,6 +7,14 @@ from textual.containers import Container, Horizontal, Vertical, VerticalScroll
 from textual.widgets import DataTable, Footer, Header, Label, Markdown, Static
 
 
+ALL_HOSTNAMES = [
+    "rush-compute-01",
+    "rush-compute-02",
+    "rush-compute-03",
+    "nlp-large-01",
+]
+
+
 class Rectangle(Static):
     def __init__(self, label: str, color: str, width: str):
         super().__init__()
@@ -15,7 +23,8 @@ class Rectangle(Static):
         self.styles.width = width
 
     def render(self) -> RenderResult:
-        return self.label
+        return f" {self.label}"
+
 
 class Indicator(Static):
     """Kind of like a progress bar, for showing how much
@@ -101,14 +110,10 @@ class SlurmStats(App):
 
     def compose(self) -> ComposeResult:
         """Called to add widgets to the app."""
-        hostnames = [
-            *[f"rush-compute-0{idx}" for idx in range(1,4)],
-            "nlp-large-01",
-        ]
         yield Header("SLURM Status")
         with Container():
             with Horizontal():
-                yield VerticalScroll(*[NodeStatus(host) for host in hostnames], id="node_status")
+                yield VerticalScroll(*[NodeStatus(host) for host in ALL_HOSTNAMES], id="node_status")
                 yield Vertical(JobStatus(), id="job_status")
         yield Footer()
 
