@@ -1,4 +1,4 @@
-from typing import Dict, List
+from typing import Dict, List, Tuple
 
 import collections
 import dataclasses
@@ -97,7 +97,8 @@ class NodeStatusInfo:
         return ', '.join(user_strs)
 
 
-def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
+def get_node_statuses() -> Tuple[List[NodeStatusInfo], pd.DataFrame]:
+    """Returns a list of per-node statuses and per-device info."""
     node_info_df = get_node_info_df()   
     jobs_df = get_all_jobs_df()
 
@@ -111,15 +112,19 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
         (jobs_df["is_billing"]) & (jobs_df["State"] == "RUNNING")]
 
     # Filter to only info about hosts we care about.
-    node_info_df["is_local_host"] = node_info_df["NODELIST"].map(lambda n: n in hostnames)
-    jobs_df["is_local_host"] = jobs_df["NodeList"].map(lambda n: n in hostnames)
-
+    # node_info_df["is_local_host"] = node_info_df["NODELIST"].map(lambda n: n in hostnames)
+    # jobs_df["is_local_host"] = jobs_df["NodeList"].map(lambda n: n in hostnames)
     node_info_df = node_info_df.drop(["PARTITION"], axis=1).drop_duplicates().reset_index()
-    node_info_df = node_info_df[node_info_df["is_local_host"]].reset_index()
-    jobs_df = jobs_df[jobs_df["is_local_host"]].reset_index()
+    # node_info_df = node_info_df[node_info_df["is_local_host"]].reset_index()
+    # jobs_df = jobs_df[jobs_df["is_local_host"]].reset_index()
     
     # Create status by combining node info and job info.
-    for h in hostnames:
+    all_hostnames = node_info_df["NODELIST"].unique()
+
+    node_statuses = []
+    taken_gpus_by_type = collections.defaultdict(lambda: 0)
+    total_gpus_by_type = collections.defaultdict(lambda: 0)
+    for h in all_hostnames:
         try:
             info = node_info_df[node_info_df["NODELIST"] == h].iloc[0]
         except IndexError:
@@ -134,7 +139,6 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
         except ValueError:
             print("<>> INFO:", info["CPUS(A/I/O/T)"]    )
             cpu_taken = cpu_total = float(info["CPUS(A/I/O/T)"])
-
         
         mem_total = int(info["MEMORY"])
         if info["FREE_MEM"] == "mix":
@@ -145,8 +149,11 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
 
         # Count GPUs.
         #    gpu:titanrtx:8(S:0-1) -> 8
-        total_gpus = int(re.search(r"gpu:\w+:(\d)\(.+", info["GRES"]).group(1))
-
+        try:
+            total_gpus = int(re.search(r"gpu:\w+:(\d)\(.+", info["GRES"]).group(1))
+        except AttributeError: # no gpus found
+            total_gpus = 0
+        
         # Now subtract in-use GPUs from each job.
         taken_gpus_by_user = collections.defaultdict(lambda: 0)
         for _, job in jobs.iterrows():
@@ -160,6 +167,13 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
             taken_gpus_by_user[user] += int(gpus_str)
 
         taken_gpus = sum(taken_gpus_by_user.values())
+        
+        # Aggregate available GPUs by type.
+        gpu_type = re.search(r"gpu:(\w+):\d+", info["GRES"])
+        if gpu_type is not None:
+            gpu_type = gpu_type.group(1)
+            total_gpus_by_type[gpu_type] += total_gpus
+            taken_gpus_by_type[gpu_type] += taken_gpus
 
         # Aggregate all info into one object.
         node_status = NodeStatusInfo(
@@ -177,17 +191,18 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
             ###############
             gpu_users=taken_gpus_by_user,
         )
-        yield node_status
+        node_statuses.append(node_status)
+    
+    # combine gpu info into df
+    gpu_info = [
+        [t, taken_gpus_by_type[t], total_gpus_by_type[t]] 
+        for t in total_gpus_by_type.keys()
+    ]
+    
+    return node_statuses, pd.DataFrame(gpu_info, columns=['GPU', 'Taken', 'Total'])
 
 
 if __name__ == "__main__":
     print(
-        list(
-            get_node_statuses([
-                "rush-compute-01",
-                "rush-compute-02",
-                "rush-compute-03",
-                "nlplarge-compute-01",
-            ])
-        )
+        list(get_node_statuses())
     )

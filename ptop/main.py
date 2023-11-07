@@ -157,13 +157,17 @@ class NodeStatus(Static):
         
 
 class JobStatus(Static):
-
     def compose(self) -> ComposeResult:
-        print("job_status compose called")
         table = DataTable()
         # table.add_columns(*self.df.columns)
         # table.add_rows(self.df.to_numpy()[1:])
         yield table
+
+
+class GpuStatus(Static):
+    def compose(self) -> ComposeResult:
+        table = DataTable()
+        yield DataTable()
 
 
 
@@ -185,10 +189,22 @@ class SlurmStats(App):
         
     @work(thread=True)
     async def load_node_info(self) -> None:
-        node_statuses = slurm_helpers.get_node_statuses(ALL_HOSTNAMES)
+        node_statuses, gpu_df = slurm_helpers.get_node_statuses()
+
+        # Update node status info
+        node_statuses = [s for s in node_statuses if s.hostname in ALL_HOSTNAMES]
         for status, node in zip(node_statuses, self.query(NodeStatus)):
             node.status = status
         self.load_count += 1
+
+        # Update GPU status info
+        data_table = self.query_one(GpuStatus).query_one(DataTable)
+        data_table.clear()
+
+        if len(data_table.columns) == 0:
+            # Only add columns the first time
+            data_table.add_columns(*gpu_df.columns)
+        data_table.add_rows(gpu_df.to_numpy()[1:])
 
         # Sleep and call this function again.
         await asyncio.sleep(0.1)
@@ -200,12 +216,13 @@ class SlurmStats(App):
 
         # TODO: make this more modular (should just set df and have these
         # automatically be computed.)
-        self.query_one(JobStatus).query_one(DataTable).clear()
+        data_table = self.query_one(JobStatus).query_one(DataTable)
+        data_table.clear()
 
-        if self.load_count < 2:
+        if len(data_table.columns) == 0:
             # Only add columns the first time
-            self.query_one(JobStatus).query_one(DataTable).add_columns(*job_df.columns)
-        self.query_one(JobStatus).query_one(DataTable).add_rows(job_df.to_numpy()[1:])
+            data_table.add_columns(*job_df.columns)
+        data_table.add_rows(job_df.to_numpy()[1:])
         self.load_count += 1
 
         # Sleep and call this function again.
@@ -229,9 +246,10 @@ class SlurmStats(App):
                 statuses = [NodeStatus() for _ in ALL_HOSTNAMES]
                 yield VerticalScroll(*statuses)
                 yield Vertical(
-                    Markdown("## Job Status"), 
+                    Markdown("## Jobs"), 
                     JobStatus(), 
-                    id="job_status",
+                    Markdown("## All GPUs"), 
+                    GpuStatus(), 
                 )
         yield Footer()
 
