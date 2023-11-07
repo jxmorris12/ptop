@@ -29,7 +29,6 @@ def get_job_status_df() -> pd.DataFrame:
            1124203 rush-inte      zsh     jxm3  R      28:46      1 rush-compute-01
     """
     cmd_output = subprocess.check_output(["squeue"])
-    # breakpoint()
     output_file = io.StringIO(cmd_output.decode())
     return pd.read_table(output_file, delim_whitespace=True, skiprows=1)
 
@@ -37,7 +36,7 @@ def get_job_status_df() -> pd.DataFrame:
 def get_node_info_df() -> pd.DataFrame:
     """See SLURM node info/stats."""
     node_info_output = subprocess.check_output(
-        'sinfo -N -O "NodeList:30,Partition:30,CPUsState:30,CPUsLoad:30,Memory:30,FreeMem:30,StateCompact:30,Threads:30,Gres:30"',
+        'sinfo -N -O "NodeList:40,Partition:40,CPUsState:40,CPUsLoad:40,Memory:40,FreeMem:40,StateCompact:40,Threads:40,Gres:40"',
         shell=True, universal_newlines=True
     )
     return pd.read_table(
@@ -146,12 +145,7 @@ def get_node_statuses(hostnames: List[str]) -> List[NodeStatusInfo]:
 
         # Count GPUs.
         #    gpu:titanrtx:8(S:0-1) -> 8
-        try:
-            total_gpus = int(re.search(r"gpu:\w+:(\d)\(.+", info["GRES"]).group(1))
-        except TypeError as e:
-            # TODO -- this happens non-deterministically; fix.
-            # breakpoint()
-            raise e
+        total_gpus = int(re.search(r"gpu:\w+:(\d)\(.+", info["GRES"]).group(1))
 
         # Now subtract in-use GPUs from each job.
         taken_gpus_by_user = collections.defaultdict(lambda: 0)

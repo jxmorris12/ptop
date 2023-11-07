@@ -1,7 +1,6 @@
 import asyncio
 
-# from . import slurm_helpers
-import slurm_helpers
+from . import slurm_helpers
 
 import pandas as pd
 
@@ -42,8 +41,6 @@ class Indicator(Static):
     active_color: str
 
     def _redraw(self) -> None:
-        print("watch taken")
-        print("self.taken, self.total")
         try:
             # TODO: How to do this without accessing _default?
             taken = self.taken._default
@@ -56,15 +53,13 @@ class Indicator(Static):
             total = self.total
 
         print("taken //:", taken, dir(taken))
-        w1 = 100.0 * taken / total
-        w2 = 100.0 * (1.0 - taken / total)
+        w1 = 100.0 * (1.0 - taken / total)
+        w2 = 100.0 * taken / total
 
         r1, r2 = self.query(Rectangle)
 
         r1.styles.width = f"{w1:.2f}%"
         r2.styles.width = f"{w2:.2f}%"
-
-        print("new widths:", w1, "//", w2)
         
         r1.label = f"{total - taken:.2f}"
         r2.label = f"{taken:.2f}"
@@ -188,7 +183,7 @@ class SlurmStats(App):
             self.query_one(LoadingIndicator).display = False
             self.query_one(Container).display = True
         
-    @work
+    @work(thread=True)
     async def load_node_info(self) -> None:
         node_statuses = slurm_helpers.get_node_statuses(ALL_HOSTNAMES)
         for status, node in zip(node_statuses, self.query(NodeStatus)):
@@ -196,22 +191,26 @@ class SlurmStats(App):
         self.load_count += 1
 
         # Sleep and call this function again.
-        # asyncio.sleep(1.0)
-        # self.load_job_info()
+        await asyncio.sleep(0.1)
+        self.load_node_info()
     
-    @work
+    @work(thread=True)
     async def load_job_info(self) -> None:
         job_df = slurm_helpers.get_job_status_df()
 
         # TODO: make this more modular (should just set df and have these
         # automatically be computed.)
-        self.query_one(JobStatus).query_one(DataTable).add_columns(*job_df.columns)
+        self.query_one(JobStatus).query_one(DataTable).clear()
+
+        if self.load_count < 2:
+            # Only add columns the first time
+            self.query_one(JobStatus).query_one(DataTable).add_columns(*job_df.columns)
         self.query_one(JobStatus).query_one(DataTable).add_rows(job_df.to_numpy()[1:])
         self.load_count += 1
 
         # Sleep and call this function again.
-        # asyncio.sleep(1.0)
-        # self.load_job_info()
+        await asyncio.sleep(2.0)
+        self.load_job_info()
 
     def on_mount(self) -> None:
         self.query_one(LoadingIndicator).display = True
