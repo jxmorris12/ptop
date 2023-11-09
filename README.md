@@ -2,6 +2,9 @@
 
 Like htop, but for SLURM clusters.
 
+![ptop_screenshot](https://github.com/jxmorris12/ptop/assets/13238952/762a1674-e7fc-4cba-a59e-1a34e4d1dd4e)
+
+
 
 ### Inspiration
 Inspired by the following related tools
