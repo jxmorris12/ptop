@@ -30,7 +30,7 @@ def get_job_status_df() -> pd.DataFrame:
     """
     cmd_output = subprocess.check_output(["squeue"])
     output_file = io.StringIO(cmd_output.decode())
-    return pd.read_table(output_file, delim_whitespace=True, skiprows=1)
+    return pd.read_table(output_file, delim_whitespace=True, skiprows=0)
 
 
 def get_node_info_df() -> pd.DataFrame:
@@ -203,6 +203,5 @@ def get_node_statuses() -> Tuple[List[NodeStatusInfo], pd.DataFrame]:
 
 
 if __name__ == "__main__":
-    print(
-        list(get_node_statuses())
-    )
+    print(list(get_node_statuses()))
+    print(get_job_status_df())
