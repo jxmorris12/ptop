@@ -7,6 +7,8 @@ import pandas as pd
 from textual import work
 from textual.app import App, ComposeResult, RenderResult
 from textual.containers import Container, Horizontal, Vertical, VerticalScroll
+from textual.coordinate import Coordinate
+from textual.geometry import Spacing
 from textual.reactive import reactive, var
 from textual.widgets import DataTable, Footer, Header, Label, LoadingIndicator, Markdown, Static
 
@@ -52,7 +54,6 @@ class Indicator(Static):
         except AttributeError:
             total = self.total
 
-        print("taken //:", taken, dir(taken))
         w1 = 100.0 * (1.0 - taken / total)
         w2 = 100.0 * taken / total
 
@@ -60,8 +61,17 @@ class Indicator(Static):
 
         r1.styles.width = f"{w1:.2f}%"
         r2.styles.width = f"{w2:.2f}%"
-        
-        r1.label = f"{total - taken:.2f}"
+
+        if taken == total: 
+            # only one bar shows up in this case
+            r1.label = ""
+            r1.styles.margin = Spacing(left=0, right=0)
+            r2.styles.margin = Spacing(left=1, right=0)
+        else:
+            # show both bars -- need padding
+            r1.styles.margin = Spacing(left=1, right=0)
+            r2.styles.margin = Spacing(left=1, right=0)
+            r1.label = f"{total - taken:.2f}"
         r2.label = f"{taken:.2f}"
 
     def watch_taken(self):
@@ -199,12 +209,17 @@ class SlurmStats(App):
 
         # Update GPU status info
         data_table = self.query_one(GpuStatus).query_one(DataTable)
-        data_table.clear()
-
         if len(data_table.columns) == 0:
             # Only add columns the first time
             data_table.add_columns(*gpu_df.columns)
-        data_table.add_rows(gpu_df.to_numpy()[1:])
+            data_table.add_rows(gpu_df.to_numpy())
+        else:
+            # Update all rows. We assume the GPUs we have on the cluster
+            # won't change since ptop was first run.
+            for i in range(len(gpu_df)):
+                # row = data_table.get_row_at(i)
+                for j, datum in enumerate(gpu_df.iloc[i].to_numpy()):
+                    data_table.update_cell_at(Coordinate(1, 1), datum)
 
         # Sleep and call this function again.
         await asyncio.sleep(0.1)
@@ -222,8 +237,17 @@ class SlurmStats(App):
         if len(data_table.columns) == 0:
             # Only add columns the first time
             data_table.add_columns(*job_df.columns)
-        data_table.add_rows(job_df.to_numpy()[1:])
+        data_table.add_rows(job_df.to_numpy())
         self.load_count += 1
+
+        # Show "No jobs found" if we're not running anything.
+        no_jobs_found_label = self.query("#no_jobs_found").first()
+        if len(job_df) == 0:
+            data_table.display = False
+            no_jobs_found_label.display = True
+        else:
+            data_table.display = True
+            no_jobs_found_label.display = False
 
         # Sleep and call this function again.
         await asyncio.sleep(2.0)
@@ -248,6 +272,7 @@ class SlurmStats(App):
                 yield Vertical(
                     Markdown("## Jobs"), 
                     JobStatus(), 
+                    Markdown("### No jobs found.", id="no_jobs_found"), 
                     Markdown("## All GPUs"), 
                     GpuStatus(), 
                 )

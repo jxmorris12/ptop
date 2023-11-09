@@ -195,11 +195,11 @@ def get_node_statuses() -> Tuple[List[NodeStatusInfo], pd.DataFrame]:
     
     # combine gpu info into df
     gpu_info = [
-        [t, taken_gpus_by_type[t], total_gpus_by_type[t]] 
+        [t, taken_gpus_by_type[t], total_gpus_by_type[t] - taken_gpus_by_type[t], total_gpus_by_type[t]] 
         for t in total_gpus_by_type.keys()
     ]
     
-    return node_statuses, pd.DataFrame(gpu_info, columns=['GPU', 'Taken', 'Total'])
+    return node_statuses, pd.DataFrame(gpu_info, columns=['GPU', 'Taken', 'Available', 'Total'])
 
 
 if __name__ == "__main__":
