@@ -144,7 +144,10 @@ def get_node_statuses() -> Tuple[List[NodeStatusInfo], pd.DataFrame]:
         if info["FREE_MEM"] == "mix":
             mem_free = mem_total
         else:
-            mem_free = int(info["FREE_MEM"])
+            try:
+                mem_free = int(info["FREE_MEM"])
+            except ValueError:
+                mem_free = 100000
         mem_taken = mem_total - mem_free
 
         # Count GPUs.
